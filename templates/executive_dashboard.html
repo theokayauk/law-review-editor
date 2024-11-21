@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Executive Editor Dashboard</title>
+    <style>
+        ul { list-style-type: none; }
+        li { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>Executive Editor Dashboard</h1>
+    <h2>Folder Structure</h2>
+
+    <a href="{{ url_for('create_folder') }}">Create New Folder</a> |
+    <a href="{{ url_for('upload_from_drive') }}">Upload File from Google Drive</a>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul>
+          {% for message in messages %}
+            <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    {% for semester, articles in folder_structure.items() %}
+        <h3>
+            {{ semester }}
+            <form method="POST" action="{{ url_for('delete_folder') }}" style="display:inline;">
+                <input type="hidden" name="folder_type" value="semester">
+                <input type="hidden" name="semester" value="{{ semester }}">
+                <button type="submit" onclick="return confirm('Delete semester {{ semester }}?');">Delete Semester</button>
+            </form>
+        </h3>
+        <ul>
+            {% for article, pdfs in articles.items() %}
+                <li>
+                    <strong>{{ article }}</strong>
+                    <form method="POST" action="{{ url_for('delete_folder') }}" style="display:inline;">
+                        <input type="hidden" name="folder_type" value="article">
+                        <input type="hidden" name="semester" value="{{ semester }}">
+                        <input type="hidden" name="article" value="{{ article }}">
+                        <button type="submit" onclick="return confirm('Delete article {{ article }}?');">Delete Article</button>
+                    </form>
+                    <ul>
+                        {% for pdf in pdfs %}
+                            <li>{{ pdf }}</li>
+                        {% endfor %}
+                    </ul>
+                </li>
+            {% endfor %}
+        </ul>
+    {% endfor %}
+</body>
+</html>

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload File from Google Drive</title>
+</head>
+<body>
+    <h1>Upload File from Google Drive</h1>
+    <form method="POST" action="{{ url_for('upload_from_drive') }}">
+        <label for="semester">Semester:</label>
+        <input type="text" name="semester" id="semester" required><br><br>
+
+        <label for="article">Article:</label>
+        <input type="text" name="article" id="article" required><br><br>
+
+        <label for="drive_url">Google Drive URL:</label>
+        <input type="text" name="drive_url" id="drive_url" required><br><br>
+
+        <button type="submit">Upload File</button>
+    </form>
+</body>
+</html>

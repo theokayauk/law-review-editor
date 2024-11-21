@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add New Article</title>
+    <!-- Include Bootstrap CSS or any other styling -->
+</head>
+<body>
+    <div class="container">
+        <h1>Add New Article</h1>
+        <form method="POST">
+            <div class="form-group">
+                <label for="title">Article Title:</label>
+                <input type="text" name="title" id="title" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="author">Author Name:</label>
+                <input type="text" name="author" id="author" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="semesters">Semester(s):</label>
+                <input type="text" name="semesters" id="semesters" class="form-control" required placeholder="e.g., Fall 2023">
+            </div>
+            <div class="form-group">
+                <label for="google_sheet_url">Google Sheet URL:</label>
+                <input type="url" name="google_sheet_url" id="google_sheet_url" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="google_drive_url">Google Drive URL:</label>
+                <input type="url" name="google_drive_url" id="google_drive_url" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="editors">Assign Editors:</label>
+                <select name="editors" id="editors" class="form-control" multiple required>
+                    {% for editor in staff_editors %}
+                        <option value="{{ editor.id }}">{{ editor.name }} ({{ editor.email }})</option>
+                    {% endfor %}
+                </select>
+                <small>Select multiple editors by holding down the Ctrl (Windows) or Command (Mac) key.</small>
+            </div>
+            <button type="submit" class="btn btn-primary">Add Article</button>
+        </form>
+    </div>
+</body>
+</html>

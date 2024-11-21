@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Welcome to the Editing App</title>
+    <style>
+        /* Basic styling */
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            width: 50%;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+        }
+        form {
+            margin-top: 30px;
+        }
+        label {
+            display: block;
+            margin-top: 15px;
+        }
+        select, input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 15px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to the Editing App</h1>
+        <form method="POST">
+            <label for="name">Your Name:</label>
+            <input type="text" name="name" id="name" required>
+
+            <label for="role">Your Role:</label>
+            <select name="role" id="role" required>
+                <option value="">-- Select your role --</option>
+                <option value="Staff Editor">Staff Editor</option>
+                <option value="Executive Editor">Executive Editor</option>
+                <option value="Source Editor">Source Editor</option>
+                <!-- Add other roles as needed -->
+            </select>
+
+            <label for="article">Select Article:</label>
+            <select name="article_id" id="article" required>
+                <option value="">-- Select an article --</option>
+                {% for article in articles %}
+                    <option value="{{ article.id }}">{{ article.title }}</option>
+                {% endfor %}
+            </select>
+
+            <button type="submit">Proceed to Editor</button>
+        </form>
+    </div>
+</body>
+</html>

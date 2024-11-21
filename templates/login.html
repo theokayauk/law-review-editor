@@ -1,0 +1,52 @@
+<!-- templates/login.html -->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login</title>
+    <style>
+        /* Simple styling for the form */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 50px;
+        }
+        .message {
+            color: red;
+        }
+        form {
+            max-width: 300px;
+        }
+        label, input {
+            display: block;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 8px 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Login</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <ul>
+            {% for category, message in messages %}
+                <li class="message">{{ message }}</li>
+            {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('login') }}">
+        <label for="email">Email:</label>
+        <input type="email" name="email" id="email" required>
+
+        <label for="password">Password:</label>
+        <input type="password" name="password" id="password" required>
+
+        <button type="submit">Login</button>
+    </form>
+
+    <p>Don't have an account? <a href="{{ url_for('register') }}">Register here</a>.</p>
+</body>
+</html>

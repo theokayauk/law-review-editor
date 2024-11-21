@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Law Review Editor Interface</title>
+</head>
+<body>
+    <h1>Upload Article and Input URLs</h1>
+    <form method="post" enctype="multipart/form-data">
+        <label for="word_doc">Upload Word Document:</label>
+        <input type="file" name="word_doc" accept=".docx"><br><br>
+        
+        <label for="sheet_url">Google Sheet URL:</label>
+        <input type="text" name="sheet_url"><br><br>
+        
+        <label for="drive_url">Google Drive Folder URL:</label>
+        <input type="text" name="drive_url"><br><br>
+        
+        <!-- New input field for Sheet Name -->
+        <label for="sheet_name">Sheet Name (optional):</label>
+        <input type="text" name="sheet_name" placeholder="Leave blank for first sheet"><br><br>
+        
+        <input type="submit" value="Submit">
+    </form>
+</body>
+</html>

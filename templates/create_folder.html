@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create New Folder</title>
+</head>
+<body>
+    <h1>Create New Folder</h1>
+    <form method="POST" action="{{ url_for('create_folder') }}">
+        <label for="folder_type">Folder Type:</label>
+        <select name="folder_type" id="folder_type" onchange="toggleFields()">
+            <option value="semester">Semester</option>
+            <option value="article">Article</option>
+        </select><br><br>
+
+        <div id="semester_field">
+            <label for="semester">Semester:</label>
+            <input type="text" name="semester" id="semester" required><br><br>
+        </div>
+
+        <div id="article_field" style="display: none;">
+            <label for="article">Article:</label>
+            <input type="text" name="article" id="article"><br><br>
+        </div>
+
+        <button type="submit">Create Folder</button>
+    </form>
+
+    <script>
+        function toggleFields() {
+            var folderType = document.getElementById('folder_type').value;
+            var articleField = document.getElementById('article_field');
+            if (folderType === 'article') {
+                articleField.style.display = 'block';
+            } else {
+                articleField.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

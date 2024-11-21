@@ -1,0 +1,19 @@
+<!-- templates/select_sheet.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Select Sheet</title>
+</head>
+<body>
+    <h1>Select a Sheet</h1>
+    <form method="post" action="{{ url_for('set_sheet_name') }}">
+        <label for="sheet_name">Sheet Name:</label>
+        <select name="sheet_name">
+            {% for name in sheet_names %}
+                <option value="{{ name }}">{{ name }}</option>
+            {% endfor %}
+        </select><br><br>
+        <input type="submit" value="Proceed">
+    </form>
+</body>
+</html>

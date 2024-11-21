@@ -1,0 +1,11 @@
+<!-- Example in base.html -->
+<nav>
+    <!-- Other navigation links -->
+    {% if current_user.is_authenticated and current_user.role == 'Executive Editor' %}
+        <a href="{{ url_for('add_article') }}">Add New Article</a>
+    {% endif %}
+    <!-- Logout link -->
+    {% if current_user.is_authenticated %}
+        <a href="{{ url_for('logout') }}">Logout</a>
+    {% endif %}
+</nav>
