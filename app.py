@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from flask import send_file
 import re
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, Response
 from flask import Flask
 from models import db
 from flask_migrate import Migrate
@@ -24,6 +24,8 @@ from werkzeug.security import check_password_hash
 import pathlib
 import io
 from googleapiclient.http import MediaIoBaseDownload
+import json
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key'  # Replace with a secure key
@@ -69,6 +71,13 @@ class Assignment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     article_id = db.Column(db.Integer, db.ForeignKey('article.id'), nullable=False)
+
+class Annotation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    pdf_id = db.Column(db.String(255), nullable=False)
+    page_number = db.Column(db.Integer, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    data = db.Column(db.Text, nullable=False)
 
 # Configuration
 PDF_FOLDER = os.path.join('static', 'pdfs')
@@ -116,6 +125,7 @@ def get_s3_folder_structure(s3_client, bucket_name):
                     folder_structure[semester][article] = pdfs
 
     return folder_structure
+
 
 @app.route('/create_folder', methods=['GET', 'POST'])
 @login_required
@@ -734,21 +744,57 @@ def serve_pdf():
     if not key:
         return "No PDF key provided.", 400
 
-    s3_client = boto3.client('s3', aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'), aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'))
+    s3_client = boto3.client('s3',
+                             aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+                             aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'))
     bucket_name = 'my-pdf-storage-bucket-oslj'
 
     try:
-        pdf_object = s3_client.get_object(Bucket=bucket_name, Key=key)
-        return send_file(
-            io.BytesIO(pdf_object['Body'].read()),
-            mimetype='application/pdf',
-            as_attachment=False,
-            download_name='document.pdf'
-        )
+        # Get the object metadata to retrieve the file size
+        head = s3_client.head_object(Bucket=bucket_name, Key=key)
+        file_size = head['ContentLength']
+
+        # Handle range requests
+        range_header = request.headers.get('Range', None)
+        if not range_header:
+            # Return the entire file
+            pdf_object = s3_client.get_object(Bucket=bucket_name, Key=key)
+            data = pdf_object['Body'].read()
+            response = Response(data, mimetype='application/pdf')
+            response.headers['Content-Length'] = str(file_size)
+            response.headers['Accept-Ranges'] = 'bytes'
+            return response
+        else:
+            # Parse the range header
+            byte1, byte2 = 0, None
+            m = re.search(r'bytes=(\d+)-(\d*)', range_header)
+            if m:
+                g = m.groups()
+                byte1 = int(g[0])
+                if g[1]:
+                    byte2 = int(g[1])
+            length = file_size - byte1
+            if byte2 is not None:
+                length = byte2 - byte1 + 1
+
+            # Fetch the partial content
+            range_header = f'bytes={byte1}-{byte2 if byte2 is not None else ""}'
+            pdf_object = s3_client.get_object(Bucket=bucket_name, Key=key, Range=range_header)
+            data = pdf_object['Body'].read()
+
+            rv = Response(data,
+                          206,
+                          mimetype='application/pdf',
+                          content_type='application/pdf',
+                          direct_passthrough=True)
+            rv.headers.add('Content-Range', f'bytes {byte1}-{byte1 + len(data) - 1}/{file_size}')
+            rv.headers.add('Accept-Ranges', 'bytes')
+            rv.headers.add('Content-Length', str(len(data)))
+            return rv
+
     except Exception as e:
         return f"An error occurred while fetching the PDF: {e}", 500
 
-   
 @app.route('/authorize')
 def authorize():
     session.pop('credentials', None)
@@ -780,15 +826,24 @@ def oauth2callback():
 
     return redirect(url_for('editor_interface'))
 
+from flask import request, jsonify
+import json
+
 @app.route('/api/save_annotation', methods=['POST'])
 def save_annotation():
     data = request.get_json()
     pdf_id = data.get('pdf_id')
-    annotation_data = data.get('annotation_data')
+    page_number = data.get('pageNumber')
+    annotation_data = data.copy()
+
+    # Remove fields that are stored separately
+    annotation_data.pop('pdf_id', None)
+    annotation_data.pop('pageNumber', None)
 
     # Save the annotation to the database
     annotation = Annotation(
         pdf_id=pdf_id,
+        page_number=page_number,
         user_id=current_user.id if current_user.is_authenticated else None,
         data=json.dumps(annotation_data)
     )
@@ -798,19 +853,39 @@ def save_annotation():
     return jsonify({'status': 'success', 'annotation_id': annotation.id})
 
 @app.route('/api/get_annotations', methods=['GET'])
-def get_annotations(pdf_id):
+def get_annotations():
     pdf_id = request.args.get('pdf_id')
     page_number = request.args.get('page', type=int)
-    annotations = Annotation.query.filter_by(pdf_id=pdf_id).all()
+
+    annotations = Annotation.query.filter_by(pdf_id=pdf_id, page_number=page_number).all()
     annotations_data = []
     for annotation in annotations:
-        annotations_data.append({
-            'id': annotation.id,
-            'user_id': annotation.user_id,
-            'data': json.loads(annotation.data)
-        })
+        annotation_data = json.loads(annotation.data)
+        annotation_data['id'] = annotation.id
+        annotation_data['user_id'] = annotation.user_id
+        annotations_data.append(annotation_data)
     return jsonify({'annotations': annotations_data})
 
+
+
+@app.route('/api/update_annotation_comment', methods=['POST'])
+def update_annotation_comment():
+    data = request.get_json()
+    annotation_id = data.get('id')
+    comment = data.get('comment')
+
+    annotation = Annotation.query.get(annotation_id)
+    if not annotation:
+        return jsonify({'status': 'error', 'message': 'Annotation not found'}), 404
+
+    # Update the comment in the annotation data
+    annotation_data = json.loads(annotation.data)
+    annotation_data['comment'] = comment
+    annotation.data = json.dumps(annotation_data)
+
+    db.session.commit()
+
+    return jsonify({'status': 'success'})
 
 
 if __name__ == '__main__':

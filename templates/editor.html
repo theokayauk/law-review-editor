@@ -21,18 +21,26 @@
         .pdf-page {
             position: relative;
         }
+
+        /* Add these styles */
         .annotation-overlay {
             position: absolute;
             top: 0;
             left: 0;
-            pointer-events: auto; /* Allow drawing */
-            cursor: crosshair; /* Indicate drawing mode */
+            pointer-events: none; /* Disable pointer events by default */
         }
+
+        #pdf-container.drawing-mode .annotation-overlay {
+            pointer-events: auto;
+            cursor: crosshair;
+        }
+
         .highlight {
             background-color: rgba(255, 255, 0, 0.4); /* Semi-transparent yellow */
             border: 1px solid yellow;
             position: absolute;
             pointer-events: auto; /* Enable clicking on highlights */
+            z-index: 10;
         }
         /* Footnote list styles */
         .footnote-list {
@@ -75,12 +83,14 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.worker.min.js';
     </script>
+    
 </head>
 <body>
 
     <h1>Welcome, {{ name }} ({{ role }})</h1>
     <h2>Editing Article: {{ article.title }}</h2>
-        
+    <button id="toggle-drawing" style="float: right;">Enter Drawing Mode</button>
+
 
     <div class="pdf-selector">
         <label for="pdf-dropdown">Select PDF:</label>
@@ -177,6 +187,7 @@
         </div>
         
         <div id="pdf-container"></div>
+        
 
         <div id="comment-popup" class="comment-popup">
             <textarea id="comment-textarea" placeholder="Enter your comment here..."></textarea>
@@ -194,12 +205,28 @@
             let isDrawing = false;
             let startX = 0;
             let startY = 0;
+            let currentPDF = null;
             let currentHighlight = null;
             let currentPageNumber = null;
             let currentViewport = null;
             let annotationOverlay = null;
+            let isDrawingMode = false;
 
             document.addEventListener('DOMContentLoaded', function() {
+
+                const toggleDrawingButton = document.getElementById('toggle-drawing');
+                    const pdfContainer = document.getElementById('pdf-container'); // Add this line
+                    toggleDrawingButton.addEventListener('click', function() {
+                        isDrawingMode = !isDrawingMode;
+                        if (isDrawingMode) {
+                            toggleDrawingButton.textContent = 'Exit Drawing Mode';
+                            pdfContainer.classList.add('drawing-mode'); // Update this line
+                        } else {
+                            toggleDrawingButton.textContent = 'Enter Drawing Mode';
+                            pdfContainer.classList.remove('drawing-mode'); // Update this line
+                        }
+                    });
+
 
                 document.getElementById('pdf-dropdown').addEventListener('change', function() {
                     const selectedPDFKey = this.value;
@@ -244,19 +271,19 @@
                 }
             });
 
-        function loadPDF(pdfKey) {
-            clearPDFContainer();
-            const url = `/pdf?key=${encodeURIComponent(pdfKey)}`;
-            currentPDF = pdfKey;
+            function loadPDF(pdfKey) {
+                clearPDFContainer();
+                const url = `/pdf?key=${encodeURIComponent(pdfKey)}`;
+                currentPDF = pdfKey;
 
-            pdfjsLib.getDocument({ url: url, withCredentials: true }).promise.then((pdf) => {
-                pdfDoc = pdf;
-                renderPages();
-            }).catch((error) => {
-                console.error('Error loading PDF:', error);
-                alert('Failed to load PDF. Please try again.');
-            });
-        }
+                pdfjsLib.getDocument({ url: url }).promise.then((pdf) => {
+                    pdfDoc = pdf;
+                    renderPages();
+                }).catch((error) => {
+                    console.error('Error loading PDF:', error);
+                    alert('Failed to load PDF. Please try again.');
+                });
+            }
 
             // Clear PDF container
             function clearPDFContainer() {
@@ -278,6 +305,7 @@
                         pageContainer.style.width = `${viewport.width}px`;
                         pageContainer.style.height = `${viewport.height}px`;
                         pageContainer.dataset.pageNumber = page.pageNumber;
+                        pageContainer.style.position = 'relative';
 
                         // Create the canvas to render the PDF page
                         const canvas = document.createElement('canvas');
@@ -291,13 +319,16 @@
                         // Append the page container to the PDF container
                         container.appendChild(pageContainer);
 
+
                         // Render the PDF page into the canvas
                         const renderContext = {
                             canvasContext: context,
                             viewport: viewport,
                         };
                         page.render(renderContext).promise.then(() => {
+
                             // After rendering, add the annotation overlay
+                           // After rendering, add the annotation overlay
                             annotationOverlay = document.createElement('div');
                             annotationOverlay.className = 'annotation-overlay';
                             annotationOverlay.style.width = `${viewport.width}px`;
@@ -305,11 +336,14 @@
                             annotationOverlay.style.position = 'absolute';
                             annotationOverlay.style.top = '0';
                             annotationOverlay.style.left = '0';
-                            annotationOverlay.style.pointerEvents = 'auto'; // Enable drawing
                             pageContainer.appendChild(annotationOverlay);
+
+                            // No need to set pointer-events or cursor here, as it's handled via classes
+
 
                             // Add event listeners for drawing annotations
                             annotationOverlay.addEventListener('mousedown', function(event) {
+                                if (!isDrawingMode) return; // Only start drawing if in drawing mode
                                 startDrawing(event, page.pageNumber, annotationOverlay, viewport);
                             });
 
@@ -320,53 +354,69 @@
                 }
             }
 
-            // Drawing Functions
             function startDrawing(event, pageNumber, annotationOverlay, viewport) {
                 event.preventDefault();
+                console.log('startDrawing called');
                 isDrawing = true;
                 const rect = annotationOverlay.getBoundingClientRect();
                 startX = event.clientX - rect.left;
                 startY = event.clientY - rect.top;
 
-                // Create a new highlight element
                 currentHighlight = document.createElement('div');
                 currentHighlight.className = 'highlight';
                 currentHighlight.style.position = 'absolute';
                 currentHighlight.style.left = `${startX}px`;
                 currentHighlight.style.top = `${startY}px`;
-                currentHighlight.style.pointerEvents = 'auto'; // Enable interaction
                 annotationOverlay.appendChild(currentHighlight);
 
-                // Add mousemove and mouseup event listeners
-                annotationOverlay.addEventListener('mousemove', draw);
-                document.addEventListener('mouseup', function stopDrawing(event) {
+                function draw(event) {
                     if (!isDrawing) return;
+                    console.log('Drawing...');
+                    const currentX = event.clientX - rect.left;
+                    const currentY = event.clientY - rect.top;
+                    const width = currentX - startX;
+                    const height = currentY - startY;
+
+                    currentHighlight.style.width = `${Math.abs(width)}px`;
+                    currentHighlight.style.height = `${Math.abs(height)}px`;
+                    currentHighlight.style.left = `${(width < 0 ? currentX : startX)}px`;
+                    currentHighlight.style.top = `${(height < 0 ? currentY : startY)}px`;
+                }
+
+                function stopDrawing() {
+                    if (!isDrawing) return;
+                    console.log('stopDrawing called');
                     isDrawing = false;
 
                     // Remove event listeners
-                    annotationOverlay.removeEventListener('mousemove', draw);
+                    document.removeEventListener('mousemove', draw);
                     document.removeEventListener('mouseup', stopDrawing);
 
-                    // Finalize the highlight
                     finalizeHighlight(currentHighlight, pageNumber, viewport);
                     currentHighlight = null;
-                });
+                }
+
+                // Attach event listeners to the document
+                document.addEventListener('mousemove', draw);
+                document.addEventListener('mouseup', stopDrawing);
             }
 
-            function draw(event) {
-                if (!isDrawing || !currentHighlight) return;
-                const rect = event.target.getBoundingClientRect();
-                const currentX = event.clientX - rect.left;
-                const currentY = event.clientY - rect.top;
-                const width = currentX - startX;
-                const height = currentY - startY;
 
-                // Update the highlight element's size and position
-                currentHighlight.style.width = `${Math.abs(width)}px`;
-                currentHighlight.style.height = `${Math.abs(height)}px`;
-                currentHighlight.style.left = `${width < 0 ? currentX : startX}px`;
-                currentHighlight.style.top = `${height < 0 ? currentY : startY}px`;
-            }
+            // function draw(event) {
+            //     if (!isDrawing || !currentHighlight) return;
+            //     console.log('Drawing...');
+            //     const rect = event.target.getBoundingClientRect();
+            //     const currentX = event.clientX - rect.left;
+            //     const currentY = event.clientY - rect.top;
+            //     const width = currentX - startX;
+            //     const height = currentY - startY;
+
+            //     // Update the highlight element's size and position
+            //     currentHighlight.style.width = `${Math.abs(width)}px`;
+            //     currentHighlight.style.height = `${Math.abs(height)}px`;
+            //     currentHighlight.style.left = `${width < 0 ? currentX : startX}px`;
+            //     currentHighlight.style.top = `${height < 0 ? currentY : startY}px`;
+            // }
 
             function finalizeHighlight(highlightElement, pageNumber, viewport) {
                 highlightElement.addEventListener('click', function(event) {
@@ -394,6 +444,7 @@
 
                 saveAnnotation(rect);
             }
+
 
             function showCommentPopup(highlightElement) {
                 const popup = document.getElementById('comment-popup');
@@ -437,6 +488,12 @@
                 .then(response => response.json())
                 .then(data => {
                     console.log('Annotation saved:', data);
+                    // Store the annotation ID for future reference
+                    annotation.id = data.annotation_id;
+                    // Update the dataset of the highlight element
+                    if (currentHighlight) {
+                        currentHighlight.dataset.annotationId = data.annotation_id;
+                    }
                 })
                 .catch(error => {
                     console.error('Error saving annotation:', error);
@@ -460,15 +517,10 @@
                 });
             }
 
-            function loadAnnotations(pageNumber, annotationOverlay, viewport, annotation) {
-                annotation.page = pageNumber;
-                fetch(`/api/get_annotations/`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(annotation)
-                })
+
+            function loadAnnotations(pageNumber, annotationOverlay, viewport) {
+                const url = `/api/get_annotations?pdf_id=${encodeURIComponent(currentPDF)}&page=${pageNumber}`;
+                fetch(url)
                     .then(response => response.json())
                     .then(data => {
                         data.annotations.forEach(annotation => {
@@ -504,8 +556,46 @@
                     .catch(error => {
                         console.error('Error loading annotations:', error);
                     });
+                    if (pageNumber === 1) { // Adjust the page number as needed
+                        const testAnnotation = {
+                            left: 100,
+                            top: 100,
+                            width: 200,
+                            height: 50,
+                            comment: 'Test annotation',
+                            id: 'test-annotation'
+                        };
+
+                        const scaledAnnotation = {
+                            left: testAnnotation.left * viewport.scale,
+                            top: testAnnotation.top * viewport.scale,
+                            width: testAnnotation.width * viewport.scale,
+                            height: testAnnotation.height * viewport.scale,
+                        };
+
+                        const highlightElement = document.createElement('div');
+                        highlightElement.className = 'highlight';
+                        highlightElement.style.left = `${scaledAnnotation.left}px`;
+                        highlightElement.style.top = `${scaledAnnotation.top}px`;
+                        highlightElement.style.width = `${scaledAnnotation.width}px`;
+                        highlightElement.style.height = `${scaledAnnotation.height}px`;
+                        highlightElement.style.position = 'absolute';
+                        highlightElement.dataset.annotationId = testAnnotation.id;
+                        highlightElement.dataset.pageNumber = pageNumber;
+                        highlightElement.dataset.comment = testAnnotation.comment;
+
+                        // Allow interaction with the highlight
+                        highlightElement.style.pointerEvents = 'auto';
+                        highlightElement.addEventListener('click', function(event) {
+                            event.stopPropagation();
+                            showCommentPopup(this);
+                        });
+
+                        annotationOverlay.appendChild(highlightElement);
+                        console.log('Test annotation added');
+                    }
             }
-        })();
+      })();
     </script>
 
 </body>
