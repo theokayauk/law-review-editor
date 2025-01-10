@@ -1,602 +1,284 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Editor Interface - {{ article.title }}</title>
-    <style>
-        .container {
-            display: flex;
-        }
-        .footnote {
-            width: 50%;
-            padding: 10px;
-            overflow-y: auto;
-        }
-        #pdf-container {
-            width: 50%;
-            max-height: 600px; /* Set the desired height for the PDF viewer */
-            overflow-y: auto; /* Enable scrolling within the PDF viewer */
-            position: relative;
-            border: 1px solid #ccc; /* Optional: Add border for visual separation */
-        }
-        .pdf-page {
-            position: relative;
-        }
+  <title>Editor Interface</title>
+  <style>
+    .container {
+      display: flex;
+    }
+    .footnotes-panel {
+      width: 50%;
+      padding: 10px;
+      overflow-y: auto;
+    }
+    .pdf-panel {
+      width: 50%;
+      max-height: 600px;
+      overflow-y: auto;
+      position: relative;
+      border: 1px solid #ccc;
+    }
 
-        /* Add these styles */
-        .annotation-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            pointer-events: none; /* Disable pointer events by default */
-        }
-
-        #pdf-container.drawing-mode .annotation-overlay {
-            pointer-events: auto;
-            cursor: crosshair;
-        }
-
-        .highlight {
-            background-color: rgba(255, 255, 0, 0.4); /* Semi-transparent yellow */
-            border: 1px solid yellow;
-            position: absolute;
-            pointer-events: auto; /* Enable clicking on highlights */
-            z-index: 10;
-        }
-        /* Footnote list styles */
-        .footnote-list {
-            list-style-type: none;
-            padding-left: 0;
-            margin-left: 0;
-        }
-        .footnote-list li {
-            margin-bottom: 10px;
-        }
-
-        /* Custom Comment Popup Styles */
-        .comment-popup {
-            position: fixed;
-            background-color: #fff;
-            border: 1px solid #ccc;
-            padding: 10px;
-            z-index: 1000;
-            display: none; /* Hidden by default */
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            border-radius: 5px;
-        }
-
-        .comment-popup textarea {
-            width: 300px;
-            height: 100px;
-        }
-
-        .comment-popup button {
-            margin-top: 5px;
-            margin-right: 5px;
-        }
-
-        /* Dropdown Menu Styles */
-        .pdf-selector {
-            margin-bottom: 20px;
-        }
-    </style>  
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.min.js"></script>
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.worker.min.js';
-    </script>
+    .footnote-list {
+      list-style-type: none;
+      padding-left: 0;
+    }
+    .footnote-list li {
+      margin-bottom: 10px;
+    }
     
+    .annotation-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+    #pdf-container.drawing-mode .annotation-overlay {
+      pointer-events: auto;
+      cursor: crosshair;
+    }
+    .highlight {
+      background-color: rgba(255, 255, 0, 0.4);
+      border: 1px solid yellow;
+      position: absolute;
+      pointer-events: auto;
+      z-index: 10;
+    }
+
+    .comment-popup {
+      position: fixed;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      padding: 10px;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      border-radius: 5px;
+    }
+    .comment-popup textarea {
+      width: 300px;
+      height: 100px;
+    }
+    .comment-popup button {
+      margin-top: 5px;
+      margin-right: 5px;
+    }
+  </style>
+  <!-- PDF.js for annotation (Optional) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.worker.min.js";
+  </script>
 </head>
 <body>
+  <h1>Editor Interface</h1>
 
-    <h1>Welcome, {{ name }} ({{ role }})</h1>
-    <h2>Editing Article: {{ article.title }}</h2>
-    <button id="toggle-drawing" style="float: right;">Enter Drawing Mode</button>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <ul>
+        {% for msg in messages %}
+          <li>{{ msg }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
 
+  <div class="container">
+    <!-- Left panel: footnotes -->
+    <div class="footnotes-panel">
+      <h2>Footnotes</h2>
+      <form method="POST" action="{{ url_for('update_footnotes') }}">
+        <input type="hidden" name="sheet_id" value="{{ sheet_id }}">
+        <input type="hidden" name="sheet_name" value="{{ sheet_name }}">
+                
+        <ul class="footnote-list">
+          {% for footnote in footnotes %}
+          <li>
+            <strong>Footnote {{ footnote.number }}:</strong><br>
 
-    <div class="pdf-selector">
-        <label for="pdf-dropdown">Select PDF:</label>
-        <select id="pdf-dropdown">
-            <option value="">-- Select a PDF --</option>
-            {% for pdf in pdfs %}
-                <option value="{{ pdf.key }}">{{ pdf.name }}</option>
-            {% endfor %}
-        </select>
-    </div>
-
-    <div class="container">
-        <div class="footnote">
-            <!-- Footnotes will be displayed here -->
-            <form method="POST" action="{{ url_for('update_footnotes') }}">
-                <!-- Hidden Inputs -->
-                <input type="hidden" name="sheet_id" value="{{ sheet_id }}">
-                <input type="hidden" name="sheet_name" value="{{ sheet_name }}">
-        
-                <!-- Footnotes List -->
-                <ul class="footnote-list">
-                {% for footnote in footnotes %}
-                    <li>
-                        <strong>Footnote {{ footnote.number }}{% if footnote.page != 'N/A' %} (Page {{ footnote.page }}){% endif %}:</strong>
-                        <p>{{ footnote.text }}</p>
-        
-                        <!-- Dropdown for Column E (Accurate) -->
-                        <div class="dropdown-group">
-                            <label for="col_e_{{ footnote.row_number }}">Accurate (Col E):</label>
-                            <select name="col_e_{{ footnote.row_number }}" id="col_e_{{ footnote.row_number }}">
-                                <option value="">Select</option>
-                                <option value="Yes" {% if footnote.col_e == 'Yes' %}selected{% endif %}>Yes</option>
-                                <option value="No" {% if footnote.col_e == 'No' %}selected{% endif %}>No</option>
-                            </select>
-                        </div>
-        
-                        <!-- Dropdown for Column F (Issue) -->
-                        <div class="dropdown-group">
-                            <label for="col_f_{{ footnote.row_number }}">Issue (Col F):</label>
-                            <select name="col_f_{{ footnote.row_number }}" id="col_f_{{ footnote.row_number }}">
-                                <option value="">Select</option>
-                                <option value="Unsupported" {% if footnote.col_f == 'Unsupported' %}selected{% endif %}>Unsupported</option>
-                                <option value="Inaccurate" {% if footnote.col_f == 'Inaccurate' %}selected{% endif %}>Inaccurate</option>
-                                <option value="None" {% if footnote.col_f == 'None' %}selected{% endif %}>None</option>
-                            </select>
-                        </div>
-        
-                        <!-- Dropdown for Column H (Accurate) -->
-                        <div class="dropdown-group">
-                            <label for="col_h_{{ footnote.row_number }}">Accurate (Col H):</label>
-                            <select name="col_h_{{ footnote.row_number }}" id="col_h_{{ footnote.row_number }}">
-                                <option value="">Select</option>
-                                <option value="Yes" {% if footnote.col_h == 'Yes' %}selected{% endif %}>Yes</option>
-                                <option value="No" {% if footnote.col_h == 'No' %}selected{% endif %}>No</option>
-                            </select>
-                        </div>
-        
-                        <!-- Dropdown for Column I (Solution/Remaining Issue) -->
-                        <div class="dropdown-group">
-                            <label for="col_i_{{ footnote.row_number }}">Solution/Remaining Issue (Col I):</label>
-                            <select name="col_i_{{ footnote.row_number }}" id="col_i_{{ footnote.row_number }}">
-                                <option value="">Select</option>
-                                <option value="Recommended new source" {% if footnote.col_i == 'Recommended new source' %}selected{% endif %}>Recommended new source</option>
-                                <option value="Located in-text support" {% if footnote.col_i == 'Located in-text support' %}selected{% endif %}>Located in-text support</option>
-                                <option value="Adjusted pincite" {% if footnote.col_i == 'Adjusted pincite' %}selected{% endif %}>Adjusted pincite</option>
-                                <option value="Adjusted signal" {% if footnote.col_i == 'Adjusted signal' %}selected{% endif %}>Adjusted signal</option>
-                                <option value="Adjusted quotation/factual proposition" {% if footnote.col_i == 'Adjusted quotation/factual proposition' %}selected{% endif %}>Adjusted quotation/factual proposition</option>
-                                <option value="Outstanding source" {% if footnote.col_i == 'Outstanding source' %}selected{% endif %}>Outstanding source</option>
-                                <option value="Still needs support" {% if footnote.col_i == 'Still needs support' %}selected{% endif %}>Still needs support</option>
-                                <option value="None" {% if footnote.col_i == 'None' %}selected{% endif %}>None</option>
-                            </select>
-                        </div>
-        
-                        <!-- Dropdown for Column L (Bluebook) -->
-                        <div class="dropdown-group">
-                            <label for="col_l_{{ footnote.row_number }}">Bluebook (Col L):</label>
-                            <select name="col_l_{{ footnote.row_number }}" id="col_l_{{ footnote.row_number }}">
-                                <option value="">Select</option>
-                                <option value="Yes" {% if footnote.col_l == 'Yes' %}selected{% endif %}>Yes</option>
-                                <option value="No" {% if footnote.col_l == 'No' %}selected{% endif %}>No</option>
-                            </select>
-                        </div>
-                        <button type="submit">Submit Updates</button>
-        
-                        <hr>
-                    </li>
-                {% endfor %}
-                </ul>
-        
-            </form>
-
-        
-
-        </div>
-        
-        <div id="pdf-container"></div>
-        
-
-        <div id="comment-popup" class="comment-popup">
-            <textarea id="comment-textarea" placeholder="Enter your comment here..."></textarea>
+            <em>Sentence (from Word Doc):</em>
+            {% if footnote_sentences[footnote.number] %}
+              {{ footnote_sentences[footnote.number] }}
+            {% else %}
+              <span style="color:gray;">(No matching docx sentence)</span>
+            {% endif %}
             <br>
-            <button id="comment-save">Save</button>
-            <button id="comment-cancel">Cancel</button>
-        </div>
+
+            <em>Text (Google Sheet):</em> {{ footnote.text }}<br>
+            <em>Page:</em> {{ footnote.page }}<br><br>
+
+            <!-- PDF Link placeholder. We'll fill it after user clicks "Generate" -->
+            <em>PDF Link:</em>
+            <span id="pdf-link-{{ footnote.number }}">
+              (Not generated yet)
+            </span>
+            <br><br>
+
+            <!-- Button to call /api/match_pdf for this footnote -->
+            <button 
+              type="button"
+              class="generate-link-button"
+              data-footnote="{{ footnote.number }}"
+              data-docx-sentence="{{ footnote_sentences[footnote.number] or ''|escape }}"
+              data-footnote-text="{{ footnote.text|escape }}"
+            >
+              Generate PDF Link
+            </button>
+
+            <hr>
+
+            <!-- Additional columns E, F, etc. for updates -->
+            <label for="col_E_{{ footnote.row_number }}">(Col E) Accurate:</label>
+            <select name="col_E_{{ footnote.row_number }}" id="col_E_{{ footnote.row_number }}">
+              <option value="">Select</option>
+              <option value="Yes" {% if footnote.col_e == 'Yes' %}selected{% endif %}>Yes</option>
+              <option value="No" {% if footnote.col_e == 'No' %}selected{% endif %}>No</option>
+            </select>
+
+            <label for="col_F_{{ footnote.row_number }}">(Col F) Issue:</label>
+            <select name="col_F_{{ footnote.row_number }}" id="col_F_{{ footnote.row_number }}">
+              <option value="">Select</option>
+              <option value="Unsupported" {% if footnote.col_f == 'Unsupported' %}selected{% endif %}>Unsupported</option>
+              <option value="Inaccurate" {% if footnote.col_f == 'Inaccurate' %}selected{% endif %}>Inaccurate</option>
+              <option value="None" {% if footnote.col_f == 'None' %}selected{% endif %}>None</option>
+            </select>
+
+            <label for="col_H_{{ footnote.row_number }}">(Col H) Accurate:</label>
+            <select name="col_H_{{ footnote.row_number }}" id="col_H_{{ footnote.row_number }}">
+              <option value="">Select</option>
+              <option value="Yes" {% if footnote.col_h == 'Yes' %}selected{% endif %}>Yes</option>
+              <option value="No" {% if footnote.col_h == 'No' %}selected{% endif %}>No</option>
+            </select>
+
+            <label for="col_I_{{ footnote.row_number }}">(Col I) Solution/Remaining Issue:</label>
+            <select name="col_I_{{ footnote.row_number }}" id="col_I_{{ footnote.row_number }}">
+              <option value="">Select</option>
+              <option value="Recommended new source" {% if footnote.col_i == 'Recommended new source' %}selected{% endif %}>Recommended new source</option>
+              <option value="Located in-text support" {% if footnote.col_i == 'Located in-text support' %}selected{% endif %}>Located in-text support</option>
+              <option value="Adjusted pincite" {% if footnote.col_i == 'Adjusted pincite' %}selected{% endif %}>Adjusted pincite</option>
+              <option value="Adjusted signal" {% if footnote.col_i == 'Adjusted signal' %}selected{% endif %}>Adjusted signal</option>
+              <option value="Adjusted quotation/factual proposition" {% if footnote.col_i == 'Adjusted quotation/factual proposition' %}selected{% endif %}>Adjusted quotation/factual proposition</option>
+              <option value="Outstanding source" {% if footnote.col_i == 'Outstanding source' %}selected{% endif %}>Outstanding source</option>
+              <option value="Still needs support" {% if footnote.col_i == 'Still needs support' %}selected{% endif %}>Still needs support</option>
+              <option value="None" {% if footnote.col_i == 'None' %}selected{% endif %}>None</option>
+            </select>
+
+            <label for="col_L_{{ footnote.row_number }}">(Col L) Bluebook:</label>
+            <select name="col_L_{{ footnote.row_number }}" id="col_L_{{ footnote.row_number }}">
+              <option value="">Select</option>
+              <option value="Yes" {% if footnote.col_l == 'Yes' %}selected{% endif %}>Yes</option>
+              <option value="No" {% if footnote.col_l == 'No' %}selected{% endif %}>No</option>
+            </select>
+
+          </li>
+          {% endfor %}
+        </ul>
+
+        <button type="submit">Submit Footnote Updates</button>
+      </form>
+
+      <hr>
+      <h3>All PDFs in Drive Folder (Reference Only)</h3>
+      {% if drive_pdfs %}
+        <ul>
+        {% for pdf_item in drive_pdfs %}
+          <li>
+            {{ pdf_item.name }}
+            - <a href="{{ pdf_item.webViewLink }}" target="_blank">Open PDF</a>
+          </li>
+        {% endfor %}
+        </ul>
+      {% else %}
+        <p>No PDF files found in that folder.</p>
+      {% endif %}
     </div>
 
-   <!-- JavaScript Code -->
-<!-- Your JavaScript Code -->
-    <script>
-        (function() {
-            let pdfDoc = null;
-            let isDrawing = false;
-            let startX = 0;
-            let startY = 0;
-            let currentPDF = null;
-            let currentHighlight = null;
-            let currentPageNumber = null;
-            let currentViewport = null;
-            let annotationOverlay = null;
-            let isDrawingMode = false;
+    <!-- Right panel: optional PDF annotation if you store PDFs in S3 -->
+    <div class="pdf-panel">
+      <h2>PDF Viewer / Annotations (S3-based example)</h2>
+      <button id="toggle-drawing" style="float: right;">Enter Drawing Mode</button>
+      <select id="pdf-dropdown">
+        <option value="">-- S3 PDF Key (if any) --</option>
+        <!-- Populate with S3 PDFs if desired -->
+      </select>
+      <div id="pdf-container"></div>
 
-            document.addEventListener('DOMContentLoaded', function() {
+      <div id="comment-popup" class="comment-popup">
+        <textarea id="comment-textarea" placeholder="Enter comment here..."></textarea>
+        <br>
+        <button id="comment-save">Save</button>
+        <button id="comment-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
 
-                const toggleDrawingButton = document.getElementById('toggle-drawing');
-                    const pdfContainer = document.getElementById('pdf-container'); // Add this line
-                    toggleDrawingButton.addEventListener('click', function() {
-                        isDrawingMode = !isDrawingMode;
-                        if (isDrawingMode) {
-                            toggleDrawingButton.textContent = 'Exit Drawing Mode';
-                            pdfContainer.classList.add('drawing-mode'); // Update this line
-                        } else {
-                            toggleDrawingButton.textContent = 'Enter Drawing Mode';
-                            pdfContainer.classList.remove('drawing-mode'); // Update this line
-                        }
-                    });
+  <!-- Make pdfDict available for JS -->
+  <script>
+    const pdfDict = JSON.parse('{{ pdf_dict_json|safe }}');  // { "title.pdf": "http://link" }
+    const pdfTitles = Object.keys(pdfDict);
 
+    document.addEventListener('DOMContentLoaded', function() {
+      // Button logic
+      document.querySelectorAll('.generate-link-button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const footnoteNumber = btn.getAttribute('data-footnote');
+          const docxSentence = btn.getAttribute('data-docx-sentence');
+          const footnoteText = btn.getAttribute('data-footnote-text');
 
-                document.getElementById('pdf-dropdown').addEventListener('change', function() {
-                    const selectedPDFKey = this.value;
-                    if (selectedPDFKey) {
-                        loadPDF(selectedPDFKey);
-                    } else {
-                        clearPDFContainer();
-                    }
-                });
+          const payload = {
+            footnote_number: parseInt(footnoteNumber),
+            docx_sentence: docxSentence,
+            footnote_text: footnoteText,
+            pdf_titles: pdfTitles,
+            pdf_dict: pdfDict
+          };
 
-                // Setup comment popup buttons
-                const saveButton = document.getElementById('comment-save');
-                const cancelButton = document.getElementById('comment-cancel');
-
-                saveButton.addEventListener('click', function() {
-                    const popup = document.getElementById('comment-popup');
-                    const textarea = document.getElementById('comment-textarea');
-                    const comment = textarea.value.trim();
-
-                    if (currentHighlight) {
-                        currentHighlight.dataset.comment = comment;
-                        updateAnnotationComment(currentHighlight.dataset.annotationId, comment);
-                    }
-
-                    // Hide popup
-                    popup.style.display = 'none';
-                });
-
-                cancelButton.addEventListener('click', function() {
-                    // Hide popup
-                    const popup = document.getElementById('comment-popup');
-                    popup.style.display = 'none';
-                });
-            });
-
-            document.getElementById('pdf-dropdown').addEventListener('change', function() {
-                const selectedPDFId = this.value;
-                if (selectedPDFId) {
-                    loadPDF(selectedPDFId);
-                } else {
-                    clearPDFContainer();
-                }
-            });
-
-            function loadPDF(pdfKey) {
-                clearPDFContainer();
-                const url = `/pdf?key=${encodeURIComponent(pdfKey)}`;
-                currentPDF = pdfKey;
-
-                pdfjsLib.getDocument({ url: url }).promise.then((pdf) => {
-                    pdfDoc = pdf;
-                    renderPages();
-                }).catch((error) => {
-                    console.error('Error loading PDF:', error);
-                    alert('Failed to load PDF. Please try again.');
-                });
+          fetch('/api/match_pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          })
+          .then(res => {
+            if (!res.ok) {
+              if (res.status === 429) {
+                alert('Rate-limited by OpenAI. Please try again later.');
+              }
+              throw new Error(`Request failed: ${res.status}`);
             }
-
-            // Clear PDF container
-            function clearPDFContainer() {
-                const container = document.getElementById('pdf-container');
-                container.innerHTML = '';
+            return res.json();
+          })
+          .then(data => {
+            if (data.error) {
+              console.error('API error:', data.error);
+              alert(`API error: ${data.error}`);
+              return;
             }
-
-            // Render PDF pages
-            function renderPages() {
-                const container = document.getElementById('pdf-container');
-                for (let pageNumber = 1; pageNumber <= pdfDoc.numPages; pageNumber++) {
-                    pdfDoc.getPage(pageNumber).then((page) => {
-                        const viewport = page.getViewport({ scale: 1.5 });
-                        currentViewport = viewport;
-                        currentPageNumber = page.pageNumber;
-
-                        const pageContainer = document.createElement('div');
-                        pageContainer.className = 'pdf-page';
-                        pageContainer.style.width = `${viewport.width}px`;
-                        pageContainer.style.height = `${viewport.height}px`;
-                        pageContainer.dataset.pageNumber = page.pageNumber;
-                        pageContainer.style.position = 'relative';
-
-                        // Create the canvas to render the PDF page
-                        const canvas = document.createElement('canvas');
-                        canvas.width = viewport.width;
-                        canvas.height = viewport.height;
-                        const context = canvas.getContext('2d');
-
-                        // Append canvas to the page container
-                        pageContainer.appendChild(canvas);
-
-                        // Append the page container to the PDF container
-                        container.appendChild(pageContainer);
-
-
-                        // Render the PDF page into the canvas
-                        const renderContext = {
-                            canvasContext: context,
-                            viewport: viewport,
-                        };
-                        page.render(renderContext).promise.then(() => {
-
-                            // After rendering, add the annotation overlay
-                           // After rendering, add the annotation overlay
-                            annotationOverlay = document.createElement('div');
-                            annotationOverlay.className = 'annotation-overlay';
-                            annotationOverlay.style.width = `${viewport.width}px`;
-                            annotationOverlay.style.height = `${viewport.height}px`;
-                            annotationOverlay.style.position = 'absolute';
-                            annotationOverlay.style.top = '0';
-                            annotationOverlay.style.left = '0';
-                            pageContainer.appendChild(annotationOverlay);
-
-                            // No need to set pointer-events or cursor here, as it's handled via classes
-
-
-                            // Add event listeners for drawing annotations
-                            annotationOverlay.addEventListener('mousedown', function(event) {
-                                if (!isDrawingMode) return; // Only start drawing if in drawing mode
-                                startDrawing(event, page.pageNumber, annotationOverlay, viewport);
-                            });
-
-                            // Load and render any existing annotations for this page
-                            loadAnnotations(page.pageNumber, annotationOverlay, viewport);
-                        });
-                    });
-                }
+            // data.pdf_link might be null
+            const linkSpan = document.getElementById(`pdf-link-${footnoteNumber}`);
+            if (data.pdf_link) {
+              linkSpan.innerHTML = `<a href="${data.pdf_link}" target="_blank">Open PDF</a>`;
+            } else {
+              linkSpan.textContent = '(No match found)';
             }
+          })
+          .catch(err => {
+            console.error('Fetch error:', err);
+          });
+        });
+      });
 
-            function startDrawing(event, pageNumber, annotationOverlay, viewport) {
-                event.preventDefault();
-                console.log('startDrawing called');
-                isDrawing = true;
-                const rect = annotationOverlay.getBoundingClientRect();
-                startX = event.clientX - rect.left;
-                startY = event.clientY - rect.top;
+      // PDF annotation toggles, optional
+      const toggleDrawingButton = document.getElementById('toggle-drawing');
+      const pdfContainer = document.getElementById('pdf-container');
+      toggleDrawingButton.addEventListener('click', function() {
+        const isDrawingMode = pdfContainer.classList.toggle('drawing-mode');
+        toggleDrawingButton.textContent = isDrawingMode
+          ? 'Exit Drawing Mode'
+          : 'Enter Drawing Mode';
+      });
+    });
+  </script>
 
-                currentHighlight = document.createElement('div');
-                currentHighlight.className = 'highlight';
-                currentHighlight.style.position = 'absolute';
-                currentHighlight.style.left = `${startX}px`;
-                currentHighlight.style.top = `${startY}px`;
-                annotationOverlay.appendChild(currentHighlight);
-
-                function draw(event) {
-                    if (!isDrawing) return;
-                    console.log('Drawing...');
-                    const currentX = event.clientX - rect.left;
-                    const currentY = event.clientY - rect.top;
-                    const width = currentX - startX;
-                    const height = currentY - startY;
-
-                    currentHighlight.style.width = `${Math.abs(width)}px`;
-                    currentHighlight.style.height = `${Math.abs(height)}px`;
-                    currentHighlight.style.left = `${(width < 0 ? currentX : startX)}px`;
-                    currentHighlight.style.top = `${(height < 0 ? currentY : startY)}px`;
-                }
-
-                function stopDrawing() {
-                    if (!isDrawing) return;
-                    console.log('stopDrawing called');
-                    isDrawing = false;
-
-                    // Remove event listeners
-                    document.removeEventListener('mousemove', draw);
-                    document.removeEventListener('mouseup', stopDrawing);
-
-                    finalizeHighlight(currentHighlight, pageNumber, viewport);
-                    currentHighlight = null;
-                }
-
-                // Attach event listeners to the document
-                document.addEventListener('mousemove', draw);
-                document.addEventListener('mouseup', stopDrawing);
-            }
-
-
-            // function draw(event) {
-            //     if (!isDrawing || !currentHighlight) return;
-            //     console.log('Drawing...');
-            //     const rect = event.target.getBoundingClientRect();
-            //     const currentX = event.clientX - rect.left;
-            //     const currentY = event.clientY - rect.top;
-            //     const width = currentX - startX;
-            //     const height = currentY - startY;
-
-            //     // Update the highlight element's size and position
-            //     currentHighlight.style.width = `${Math.abs(width)}px`;
-            //     currentHighlight.style.height = `${Math.abs(height)}px`;
-            //     currentHighlight.style.left = `${width < 0 ? currentX : startX}px`;
-            //     currentHighlight.style.top = `${height < 0 ? currentY : startY}px`;
-            // }
-
-            function finalizeHighlight(highlightElement, pageNumber, viewport) {
-                highlightElement.addEventListener('click', function(event) {
-                    event.stopPropagation();
-                    showCommentPopup(this);
-                });
-
-                const annotationId = generateUUID();
-                highlightElement.dataset.annotationId = annotationId;
-                highlightElement.dataset.pageNumber = pageNumber;
-
-                // Optionally prompt for a comment
-                showCommentPopup(highlightElement);
-
-                // Save the annotation data
-                const rect = {
-                    left: parseFloat(highlightElement.style.left) / viewport.scale,
-                    top: parseFloat(highlightElement.style.top) / viewport.scale,
-                    width: parseFloat(highlightElement.style.width) / viewport.scale,
-                    height: parseFloat(highlightElement.style.height) / viewport.scale,
-                    pageNumber: pageNumber,
-                    id: annotationId,
-                    comment: highlightElement.dataset.comment || '',
-                };
-
-                saveAnnotation(rect);
-            }
-
-
-            function showCommentPopup(highlightElement) {
-                const popup = document.getElementById('comment-popup');
-                const textarea = document.getElementById('comment-textarea');
-                const saveButton = document.getElementById('comment-save');
-                const cancelButton = document.getElementById('comment-cancel');
-
-                // Set existing comment
-                textarea.value = highlightElement.dataset.comment || '';
-
-                // Show the popup
-                popup.style.display = 'block';
-
-                // Position the popup near the highlight
-                const rect = highlightElement.getBoundingClientRect();
-                popup.style.top = `${rect.bottom + window.scrollY}px`;
-                popup.style.left = `${rect.left + window.scrollX}px`;
-
-                // Store the current highlight element for reference
-                currentHighlight = highlightElement;
-            }
-
-            function generateUUID() {
-                // Simple UUID generator
-                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-                    return v.toString(16);
-                });
-            }
-
-            function saveAnnotation(annotation) {
-                annotation.pdf_id = currentPDF;
-
-                fetch('/api/save_annotation', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(annotation)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Annotation saved:', data);
-                    // Store the annotation ID for future reference
-                    annotation.id = data.annotation_id;
-                    // Update the dataset of the highlight element
-                    if (currentHighlight) {
-                        currentHighlight.dataset.annotationId = data.annotation_id;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error saving annotation:', error);
-                });
-            }
-
-            function updateAnnotationComment(annotationId, comment) {
-                fetch('/api/update_annotation_comment', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ id: annotationId, comment: comment })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Annotation updated:', data);
-                })
-                .catch(error => {
-                    console.error('Error updating annotation:', error);
-                });
-            }
-
-
-            function loadAnnotations(pageNumber, annotationOverlay, viewport) {
-                const url = `/api/get_annotations?pdf_id=${encodeURIComponent(currentPDF)}&page=${pageNumber}`;
-                fetch(url)
-                    .then(response => response.json())
-                    .then(data => {
-                        data.annotations.forEach(annotation => {
-                            const scaledAnnotation = {
-                                left: annotation.left * viewport.scale,
-                                top: annotation.top * viewport.scale,
-                                width: annotation.width * viewport.scale,
-                                height: annotation.height * viewport.scale,
-                            };
-
-                            // Create the highlight element
-                            const highlightElement = document.createElement('div');
-                            highlightElement.className = 'highlight';
-                            highlightElement.style.left = `${scaledAnnotation.left}px`;
-                            highlightElement.style.top = `${scaledAnnotation.top}px`;
-                            highlightElement.style.width = `${scaledAnnotation.width}px`;
-                            highlightElement.style.height = `${scaledAnnotation.height}px`;
-                            highlightElement.style.position = 'absolute';
-                            highlightElement.dataset.annotationId = annotation.id;
-                            highlightElement.dataset.pageNumber = pageNumber;
-                            highlightElement.dataset.comment = annotation.comment || '';
-
-                            // Allow interaction with the highlight
-                            highlightElement.style.pointerEvents = 'auto';
-                            highlightElement.addEventListener('click', function(event) {
-                                event.stopPropagation();
-                                showCommentPopup(this);
-                            });
-
-                            annotationOverlay.appendChild(highlightElement);
-                        });
-                    })
-                    .catch(error => {
-                        console.error('Error loading annotations:', error);
-                    });
-                    if (pageNumber === 1) { // Adjust the page number as needed
-                        const testAnnotation = {
-                            left: 100,
-                            top: 100,
-                            width: 200,
-                            height: 50,
-                            comment: 'Test annotation',
-                            id: 'test-annotation'
-                        };
-
-                        const scaledAnnotation = {
-                            left: testAnnotation.left * viewport.scale,
-                            top: testAnnotation.top * viewport.scale,
-                            width: testAnnotation.width * viewport.scale,
-                            height: testAnnotation.height * viewport.scale,
-                        };
-
-                        const highlightElement = document.createElement('div');
-                        highlightElement.className = 'highlight';
-                        highlightElement.style.left = `${scaledAnnotation.left}px`;
-                        highlightElement.style.top = `${scaledAnnotation.top}px`;
-                        highlightElement.style.width = `${scaledAnnotation.width}px`;
-                        highlightElement.style.height = `${scaledAnnotation.height}px`;
-                        highlightElement.style.position = 'absolute';
-                        highlightElement.dataset.annotationId = testAnnotation.id;
-                        highlightElement.dataset.pageNumber = pageNumber;
-                        highlightElement.dataset.comment = testAnnotation.comment;
-
-                        // Allow interaction with the highlight
-                        highlightElement.style.pointerEvents = 'auto';
-                        highlightElement.addEventListener('click', function(event) {
-                            event.stopPropagation();
-                            showCommentPopup(this);
-                        });
-
-                        annotationOverlay.appendChild(highlightElement);
-                        console.log('Test annotation added');
-                    }
-            }
-      })();
-    </script>
-
+  <!-- (Optional) The rest of your annotation JS code goes here -->
 </body>
 </html>

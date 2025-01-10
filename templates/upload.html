@@ -1,25 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Law Review Editor Interface</title>
+    <title>Upload Page</title>
 </head>
 <body>
-    <h1>Upload Article and Input URLs</h1>
-    <form method="post" enctype="multipart/form-data">
-        <label for="word_doc">Upload Word Document:</label>
-        <input type="file" name="word_doc" accept=".docx"><br><br>
-        
-        <label for="sheet_url">Google Sheet URL:</label>
-        <input type="text" name="sheet_url"><br><br>
-        
-        <label for="drive_url">Google Drive Folder URL:</label>
-        <input type="text" name="drive_url"><br><br>
-        
-        <!-- New input field for Sheet Name -->
-        <label for="sheet_name">Sheet Name (optional):</label>
-        <input type="text" name="sheet_name" placeholder="Leave blank for first sheet"><br><br>
-        
-        <input type="submit" value="Submit">
+    <h1>Upload Google Sheet / Drive info and Word Document</h1>
+
+    <form method="POST" action="/" enctype="multipart/form-data">
+        <div>
+            <label for="sheet_url">Google Sheet URL:</label>
+            <input type="text" name="sheet_url" id="sheet_url" required>
+        </div>
+        <br>
+
+        <div>
+            <label for="drive_url">Google Drive Folder URL:</label>
+            <input type="text" name="drive_url" id="drive_url" required>
+        </div>
+        <br>
+
+        <div>
+            <label for="word_doc">Upload Word Document (.docx):</label>
+            <input type="file" name="word_doc" id="word_doc" accept=".docx">
+        </div>
+        <br>
+
+        <div>
+            <label for="sheet_name">Name of the Sheet tab:</label>
+            <input type="text" name="sheet_name" id="sheet_name" required>
+        </div>
+        <br>
+
+        <button type="submit">Submit</button>
     </form>
 </body>
 </html>

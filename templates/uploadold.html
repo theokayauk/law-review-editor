@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head><title>Upload Page</title></head>
+<body>
+<h1>Upload Article Data</h1>
+
+<form method="POST" action="/" enctype="multipart/form-data">
+    <label for="article-dropdown">Select Article (from AWS):</label>
+    <select name="article_name" id="article-dropdown">
+        <!-- This will be populated by Jinja from the server -->
+        {% for article in articles %}
+            <option value="{{ article }}">{{ article }}</option>
+        {% endfor %}
+    </select>
+    <br><br>
+
+    <label for="word_doc">Upload Word Document:</label>
+    <input type="file" name="word_doc" id="word_doc" accept=".docx">
+    <br><br>
+    
+    <label for="sheet_url">Google Sheet URL:</label>
+    <input type="text" name="sheet_url" id="sheet_url">
+    <br><br>
+
+    <label for="drive_url">Google Drive Folder URL:</label>
+    <input type="text" name="drive_url" id="drive_url">
+    <br><br>
+
+    <label for="sheet_name">Google Sheet Name:</label>
+    <input type="text" name="sheet_name" id="sheet_name">
+    <br><br>
+
+    <button type="submit">Submit</button>
+</form>
+</body>
+</html>
